@@ -201,9 +201,14 @@ const Sales = () => {
     setReturnRequestModal(true);
   }
 
-  const handleReturnRequestConfirm = async ({ returnItems, replacementItems, reason }) => {
+  const handleReturnRequestConfirm = async ({ returnItems, replacementItems, reason, cashRendered }) => {
     if (!saleToVoid || !returnItems || returnItems.length === 0) {
       toast.error('Please select at least one item to return');
+      return;
+    }
+
+    if (!cashRendered || cashRendered <= 0) {
+      toast.error('Cash rendered is required');
       return;
     }
 
@@ -253,8 +258,7 @@ const Sales = () => {
           customerPhone: saleToVoid.customerPhone || undefined,
           tinNumber: saleToVoid.tinNumber || undefined,
           paymentMethod: 'cash',
-          // Use original cashRendered if available, otherwise match total
-          cashRendered: saleToVoid.cashRendered || total,
+          cashRendered,
           items: combinedItems.map(item => ({
             product: item.product,
             quantity: item.quantity,

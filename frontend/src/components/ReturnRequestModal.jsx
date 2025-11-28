@@ -23,6 +23,7 @@ const ReturnRequestModal = ({
     const [productSearchQuery, setProductSearchQuery] = useState('');
     const [cart, setCart] = useState([]);
     const [returnItems, setReturnItems] = useState([]);
+    const [cashRendered, setCashRendered] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -32,6 +33,7 @@ const ReturnRequestModal = ({
             setProductSearchQuery('');
             setCart([]);
             setReturnItems([]);
+            setCashRendered('');
         }
     }, [isOpen]);
 
@@ -43,18 +45,43 @@ const ReturnRequestModal = ({
 
     if (!isOpen) return null;
 
+    const returnedAmount = returnItems.reduce((sum, item) => {
+        return sum + item.price * item.returnQty;
+    }, 0);
+
+    const originalSubtotal = (sales?.items || []).reduce((sum, item) => {
+        return sum + item.price * item.quantity;
+    }, 0);
+
+    const remainingAmount = originalSubtotal - returnedAmount;
+
+    const replacementAmount = cart.reduce((sum, item) => {
+        return sum + item.price * item.quantity;
+    }, 0);
+
+    const newSubtotal = remainingAmount + replacementAmount;
+    const vatRate = 0.12;
+    const newVat = newSubtotal * vatRate;
+    const newTotal = newSubtotal + newVat;
+
+    const parsedCashRendered = parseFloat(cashRendered || 0);
+    const change = parsedCashRendered > 0 ? Math.max(0, parsedCashRendered - newTotal) : 0;
+
+    const hasReturnItems = returnItems.length > 0;
+    const isCashValid = parsedCashRendered >= newTotal && parsedCashRendered > 0;
+
     const handleConfirm = () => {
         const reason = selectedReason === 'Other' ? customReason : selectedReason;
-        const hasReturnItems = returnItems.length > 0;
 
-        if (!reason.trim() || !hasReturnItems || isLoading) {
+        if (!reason.trim() || !hasReturnItems || isLoading || !isCashValid) {
             return;
         }
 
         onConfirm({
             returnItems,
             replacementItems: cart,
-            reason: reason.trim()
+            reason: reason.trim(),
+            cashRendered: parsedCashRendered,
         });
     };
 
@@ -88,11 +115,11 @@ const ReturnRequestModal = ({
             return prev;
         });
     };
-    const hasReturnItems = returnItems.length > 0;
     const isFormValid =
         hasReturnItems &&
         selectedReason &&
-        (selectedReason !== 'Other' || customReason.trim());
+        (selectedReason !== 'Other' || customReason.trim()) &&
+        isCashValid;
 
     const addToCart = (product) => {
         const existingItem = cart.find(item => item.product._id === product._id);
@@ -131,8 +158,9 @@ const ReturnRequestModal = ({
                 }
             }}
         >
+
             <div
-                className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl mx-4"
+                className="bg-white p-6 rounded-lg shadow-xl w-full max-w-3xl mx-4 h-[80vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center space-x-4 mb-4">
@@ -140,6 +168,28 @@ const ReturnRequestModal = ({
                     <div className="flex-1">
                         <h3 className="text-xl font-bold text-gray-900">Request to Return Item</h3>
                     </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        disabled={isLoading}
+                        className="text-gray-500 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Close modal"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-6 w-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                            />
+                        </svg>
+                    </button>
                 </div>
 
                 <p className="text-gray-600 mb-4">
@@ -178,7 +228,7 @@ const ReturnRequestModal = ({
                         />
                     </div>
                 )}
-               
+
                 {/* Sales Items – Select which item to return */}
                 <div className="border rounded-lg p-4 mb-4">
                     <h3 className="font-semibold mb-2">Items Purchased</h3>
@@ -342,7 +392,62 @@ const ReturnRequestModal = ({
                     </div>
                 </div>
 
-                <div className="flex space-x-3 justify-end">
+                <div className="border-t pt-4 mt-4 space-y-3">
+                    <div className="flex justify-between text-sm">
+                        <span>Returned Amount:</span>
+                        <span>{formatCurrencyDisplay(returnedAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span>Remaining from Original Sale:</span>
+                        <span>{formatCurrencyDisplay(remainingAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span>Replacement Items:</span>
+                        <span>{formatCurrencyDisplay(replacementAmount)}</span>
+                    </div>
+
+                    <div className="flex justify-between font-semibold border-t pt-2">
+                        <span>New Subtotal:</span>
+                        <span>{formatCurrencyDisplay(newSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span>VAT (12%):</span>
+                        <span>{formatCurrencyDisplay(newVat)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold">
+                        <span>New Total:</span>
+                        <span>{formatCurrencyDisplay(newTotal)}</span>
+                    </div>
+
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Cash Rendered *
+                        </label>
+                        <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={cashRendered}
+                            onChange={(e) => setCashRendered(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                            placeholder="Enter amount paid by customer"
+                        />
+                        {!isCashValid && parsedCashRendered > 0 && (
+                            <p className="text-red-500 text-xs mt-1">
+                                Cash rendered must be at least {formatCurrencyDisplay(newTotal)}.
+                            </p>
+                        )}
+                    </div>
+
+                    {isCashValid && (
+                        <div className="flex justify-between text-sm font-semibold text-green-600 border-t pt-2">
+                            <span>Change:</span>
+                            <span>{formatCurrencyDisplay(change)}</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex space-x-3 justify-end mt-4">
                     <button
                         onClick={onClose}
                         disabled={isLoading}

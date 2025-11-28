@@ -44,7 +44,7 @@ router.post('/', authorize('supplier', 'staff', 'admin'), [
  * @desc    Request to void a sale (Staff only)
  * @access  Private/Staff
  */
-router.post('/:id/void-request', authorize('staff'), [
+router.post('/:id/void-request', authorize('staff', 'admin'), [
   body('voidRequestReason')
     .trim()
     .notEmpty()
