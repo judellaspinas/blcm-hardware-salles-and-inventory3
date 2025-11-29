@@ -240,8 +240,29 @@ const Sales = () => {
         quantity: item.quantity,
         price: item.price,
       }));
+      // 3. NEW MERGE LOGIC — combines items with same product
+      const mergeMap = new Map();
 
-      const combinedItems = [...remainingItems, ...replacementSaleItems];
+      [...remainingItems, ...replacementSaleItems].forEach(item => {
+        const key = item.product;
+
+        if (!mergeMap.has(key)) {
+          mergeMap.set(key, { ...item });
+        } else {
+          const existing = mergeMap.get(key);
+
+          mergeMap.set(key, {
+            ...existing,
+            quantity: existing.quantity + item.quantity,
+
+            // Optional: Ensure unit price stays consistent or choose the latest
+            price: item.price ?? existing.price,
+          });
+        }
+      });
+
+      // Final Combined Items
+      const combinedItems = Array.from(mergeMap.values());
 
       if (combinedItems.length > 0) {
         // Compute totals based on the combined items
